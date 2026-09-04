@@ -23,7 +23,7 @@ async def on_ready():
 
 @bot.command()
 async def status(ctx):
-    if  not ctx.author.bot:
+    if not ctx.author.bot:
         await ctx.send('skynet: ONLINE')
 
 bot.run(TOKEN)
