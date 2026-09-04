@@ -1,6 +1,16 @@
 import discord
+import os
+import sys
 
-from discord import commands
+from discord.ext import commands
+from dotenv import load_dotenv
+
+load_dotenv()
+TOKEN = os.getenv('TOKEN')
+
+if not TOKEN:
+    print('skynet: ERROR - no token - FATAL')
+    sys.exit()
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -14,3 +24,5 @@ async def on_ready():
 @bot.command()
 async def status(ctx):
     await ctx.send('skynet: ONLINE')
+
+bot.run(TOKEN)
