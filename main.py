@@ -9,8 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
-anime_roll_url_one = "https://api.jikan.moe/v4/characters/1"
-anime_roll_url_two = """
+anime_roll_url = """
 query ($id: Int) {
     Character(id: $id) {
         id
@@ -43,15 +42,9 @@ async def on_ready():
 async def status(ctx):
     if not ctx.author.bot:
         anime_roll_status = True
-        response = requests.get(anime_roll_url_one)
+        response = requests.post("https://graphql.anilist.co", json={"query": anime_roll_url, 'variables': {'id': 1}}, )
         if not response.status_code == 200:
             anime_roll_status = False
-        if not anime_roll_status:
-            anime_roll_status = True
-            response = requests.post("https://graphql.anilist.co", json={"query":
-            anime_roll_url_two, 'variables': {'id': 1}}, )
-            if not response.status_code == 200:
-                anime_roll_status = False
 
         await ctx.send('skynet: ONLINE')
         if anime_roll_status: await ctx.send('skynet - animeroll: ONLINE')
@@ -61,32 +54,8 @@ async def status(ctx):
 @bot.command()
 async def animeroll(ctx):
     if not ctx.author.bot:
-
-        async def roll_anime_one(message):
-            response = requests.get(anime_roll_url_one)
-
-            if response.status_code != 200:
-                print('skynet: ERROR - no character found - WARNING')
-                await message.edit(content='skynet: ERROR - no character found - WARNING')
-                return False
-
-            response = response.json()
-
-            if 'data' not in response:
-                print('skynet: ERROR - no data content found - WARNING')
-                await message.edit(content='skynet: ERROR - no data content found - WARNING')
-                return False
-
-            character = response['data']
-
-            await message.edit(content=f'ROLLED!\n'
-                                       f'{character['name']}\n'
-                                       f'{character['url']}\n'
-                                       f'{character['images']['jpg']['image_url']}')
-            return True
-
         async def roll_anime_two(message, variables):
-            response = requests.post('https://graphql.anilist.co', json={'query': anime_roll_url_two, 'variables':
+            response = requests.post('https://graphql.anilist.co', json={'query': anime_roll_url, 'variables':
                 variables}, timeout=5)
 
             if response.status_code != 200:
@@ -114,10 +83,6 @@ async def animeroll(ctx):
 
         variables = {'id': random.randint(1, 300000)}
         message = await ctx.send('ROLLING...')
-        status = await roll_anime_one(message)
-        if status: return
-        print('skynet: ERROR - first roll failed - WARNING')
-        await message.edit(content=f'skynet: ERROR - first roll failed - WARNING')
-        if not status: await roll_anime_two(message, variables)
+        await roll_anime_two(message, variables)
 
 bot.run(TOKEN)
