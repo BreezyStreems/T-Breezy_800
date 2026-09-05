@@ -49,7 +49,7 @@ async def status(ctx):
         if not anime_roll_status:
             anime_roll_status = True
             response = requests.post("https://graphql.anilist.co", json={"query":
-            anime_roll_url_two}, )
+            anime_roll_url_two, 'variables': {'id': 1}}, )
             if not response.status_code == 200:
                 anime_roll_status = False
 
