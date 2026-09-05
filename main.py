@@ -11,7 +11,7 @@ load_dotenv()
 TOKEN = os.getenv('TOKEN')
 anime_roll_url_one = "https://api.jikan.moe/v4/characters/1"
 anime_roll_url_two = """
-query {
+query ($id: Int) {
     Character(id: $id) {
         id
         name {
@@ -85,23 +85,24 @@ async def animeroll(ctx):
                                        f'{character['images']['jpg']['image_url']}')
             return True
 
-        async def roll_anime_two(message):
+        async def roll_anime_two(message, variables):
             response = requests.post('https://graphql.anilist.co', json={'query': anime_roll_url_two, 'variables':
                 variables}, timeout=5)
 
-            if not response.status_code == 200:
+            if response.status_code != 200:
                 print('skynet: ERROR - no character found - WARNING')
-                await message.edit(content='skynet: ERROR - no character found - WARNING')
+                await message.edit(content=f'skynet: ERROR - no character found | status code {response.status_code} - '
+                                           f'WARNING')
                 return
 
             result = response.json().get('data', {}).get('Character')
 
-            if not result['data']['Character']:
+            if not result:
                 print('skynet: ERROR - no character found - WARNING')
                 await message.edit(content='skynet: ERROR - no character found - WARNING')
                 return
 
-            character = result['data']['Character']
+            character = result
 
             embed = discord.Embed(
                 title=character['name']['full'],
@@ -111,12 +112,12 @@ async def animeroll(ctx):
             embed.set_image(url=character['image']['large'])
             await message.edit(content='ROLLED!', embed=embed)
 
-        variables = {'id': random.randint(1, 120000)}
+        variables = {'id': random.randint(1, 300000)}
         message = await ctx.send('ROLLING...')
         status = await roll_anime_one(message)
         if status: return
         print('skynet: ERROR - first roll failed - WARNING')
         await message.edit(content=f'skynet: ERROR - first roll failed - WARNING')
-        if not status: await roll_anime_two(message)
+        if not status: await roll_anime_two(message, variables)
 
 bot.run(TOKEN)
