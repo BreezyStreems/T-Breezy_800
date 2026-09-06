@@ -3,6 +3,7 @@ import os
 import sys
 import requests
 import random
+import sqlite3
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -34,6 +35,24 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='B| ', intents=intents)
 
+anime_roll_db_connection = sqlite3.connect('anime_roll.db')
+ardb_cursor = anime_roll_db_connection.cursor()
+ardb_cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users(
+            id INTEGER PRIMARY KEY,
+            rolls INTEGER DEFAULT 0
+        )
+        """)
+anime_roll_db_connection.commit()
+ardb_cursor.execute("""
+        CREATE TABLE IF NOT EXISTS characters(
+            id INTEGER,
+            character TEXT,
+            power INTEGER,
+        )
+        """)
+anime_roll_db_connection.commit()
+
 @bot.event
 async def on_ready():
     print(f'skynet initialized: {bot.user}')
@@ -62,14 +81,14 @@ async def animeroll(ctx):
                 print('skynet: ERROR - no character found - WARNING')
                 await message.edit(content=f'skynet: ERROR - no character found | status code {response.status_code} - '
                                            f'WARNING')
-                return
+                return False, None
 
             result = response.json().get('data', {}).get('Character')
 
             if not result:
                 print('skynet: ERROR - no character found - WARNING')
                 await message.edit(content='skynet: ERROR - no character found - WARNING')
-                return
+                return False, None
 
             character = result
 
@@ -80,9 +99,31 @@ async def animeroll(ctx):
             )
             embed.set_image(url=character['image']['large'])
             await message.edit(content='ROLLED!', embed=embed)
+            return True, character
 
         variables = {'id': random.randint(1, 300000)}
         message = await ctx.send('ROLLING...')
-        await roll_anime_two(message, variables)
+        status, character = await roll_anime_two(message, variables)
+        if not status:
+            print('skynet: ERROR - roll failed. aborting command - WARNING')
+            return
+
+        ardb_cursor.execute("""
+        INSERT OR IGNORE INTO users (id)
+        VALUES (?)
+        """, (ctx.author.id,))
+
+        ardb_cursor.execute("""
+        UPDATE users
+        SET rolls = rolls + 1
+        WHERE id = ?
+        """, (ctx.author.id,))
+
+        ardb_cursor.execute("""
+        INSERT INTO characters (id, character)
+        VALUES (?, ?)
+        """, (ctx.author.id, character['name']['full']))
+        anime_roll_db_connection.commit()
+
 
 bot.run(TOKEN)
