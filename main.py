@@ -25,6 +25,11 @@ query ($id: Int) {
     }
 }
 """
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+}
 
 if not TOKEN:
     print('skynet: ERROR - no token - FATAL')
@@ -83,7 +88,7 @@ async def animeroll(ctx):
     if not ctx.author.bot:
         async def roll_anime_two(message, variables):
             response = requests.post('https://graphql.anilist.co', json={'query': anime_roll_url, 'variables':
-                variables}, timeout=5)
+                variables}, headers=headers, timeout=5)
 
             if response.status_code != 200:
                 print(f'skynet: ERROR - no character found | status code {response.status_code} - WARNING')
