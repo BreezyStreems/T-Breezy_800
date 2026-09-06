@@ -48,7 +48,7 @@ ardb_cursor.execute("""
         CREATE TABLE IF NOT EXISTS characters(
             id INTEGER,
             character TEXT,
-            power INTEGER,
+            power INTEGER
         )
         """)
 anime_roll_db_connection.commit()
@@ -57,7 +57,17 @@ anime_roll_db_connection.commit()
 async def on_ready():
     print(f'skynet initialized: {bot.user}')
 
-@bot.command()
+@bot.event
+async def on_message(ctx):
+    if ctx.author == bot.user:
+        return
+
+    if ctx.content.startswith('B| '):
+        if ctx.content.endswith('animeroll'):
+            await animeroll(ctx)
+        elif ctx.content.endswith('status'):
+            await status(ctx)
+
 async def status(ctx):
     if not ctx.author.bot:
         anime_roll_status = True
@@ -69,8 +79,6 @@ async def status(ctx):
         if anime_roll_status: await ctx.send('skynet - animeroll: ONLINE')
         else: await ctx.send('skynet - animeroll: OFFLINE')
 
-
-@bot.command()
 async def animeroll(ctx):
     if not ctx.author.bot:
         async def roll_anime_two(message, variables):
@@ -78,7 +86,7 @@ async def animeroll(ctx):
                 variables}, timeout=5)
 
             if response.status_code != 200:
-                print('skynet: ERROR - no character found - WARNING')
+                print(f'skynet: ERROR - no character found | status code {response.status_code} - WARNING')
                 await message.edit(content=f'skynet: ERROR - no character found | status code {response.status_code} - '
                                            f'WARNING')
                 return False, None
@@ -102,7 +110,7 @@ async def animeroll(ctx):
             return True, character
 
         variables = {'id': random.randint(1, 300000)}
-        message = await ctx.send('ROLLING...')
+        message = await ctx.channel.send('ROLLING...')
         status, character = await roll_anime_two(message, variables)
         if not status:
             print('skynet: ERROR - roll failed. aborting command - WARNING')
@@ -124,6 +132,5 @@ async def animeroll(ctx):
         VALUES (?, ?)
         """, (ctx.author.id, character['name']['full']))
         anime_roll_db_connection.commit()
-
 
 bot.run(TOKEN)
