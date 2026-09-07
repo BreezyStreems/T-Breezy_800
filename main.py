@@ -8,8 +8,13 @@ import sqlite3
 from discord.ext import commands
 from dotenv import load_dotenv
 
+# ------------------ ENV VARIABLES
+
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
+
+# ------------------ ANIME ROLL VARIABLES
+
 anime_roll_url = """
 query ($id: Int) {
     Character(id: $id) {
@@ -35,10 +40,14 @@ if not TOKEN:
     print('skynet: ERROR - no token - FATAL')
     sys.exit()
 
+# ------------------ DISCORD VARIABLES
+
 intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix='B| ', intents=intents)
+
+# ------------------ SQLITE3 VARIABLES & ACTIONS
 
 anime_roll_db_connection = sqlite3.connect('anime_roll.db')
 ardb_cursor = anime_roll_db_connection.cursor()
@@ -58,6 +67,11 @@ ardb_cursor.execute("""
         """)
 anime_roll_db_connection.commit()
 
+# ------------------ IMPORTANT VARIABLES
+
+
+
+# ------------------ DISCORD EVENTS
 @bot.event
 async def on_ready():
     print(f'skynet initialized: {bot.user}')
@@ -74,6 +88,8 @@ async def on_message(ctx):
             await status(ctx)
         elif ctx.content.endswith('animeinv'):
             await animeinv(ctx)
+
+# ------------------ FUNCTIONS
 
 async def status(ctx):
     if not ctx.author.bot:
