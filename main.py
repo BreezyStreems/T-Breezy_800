@@ -5,6 +5,7 @@ import requests
 import random
 import sqlite3
 import time
+import json
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -13,6 +14,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
+trusted_users = json.loads(os.getenv('TRUSTED_USERS', '[]'))
+if not TOKEN:
+    print('skynet: ERROR - no token - FATAL')
+    sys.exit()
+if not trusted_users:
+    print('skynet: ERROR - no trusted users - CRITICAL')
+    trusted_to_add = input('input a trusted user: ')
+    trusted_users = []
+    trusted_users.append(trusted_to_add)
 
 # ------------------ ANIME ROLL VARIABLES
 
@@ -36,10 +46,6 @@ headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
 }
-
-if not TOKEN:
-    print('skynet: ERROR - no token - FATAL')
-    sys.exit()
 
 # ------------------ DISCORD VARIABLES
 
@@ -97,6 +103,13 @@ async def on_message(ctx):
             await status(ctx)
         elif ctx.content.endswith('animeinv'):
             await animeinv(ctx)
+
+        # BREEZY COMMANDS
+        if ctx.author.id in trusted_users:
+            if ctx.content[:7] == 'B| info':
+                if len(ctx.mentions) == 1:
+                    user = ctx.mentions[0]
+                    await info(ctx, user)
 
 # ------------------ FUNCTIONS
 
@@ -180,5 +193,27 @@ async def animeinv(ctx):
             await message.edit(content=character_list)
         else:
             await message.edit(content='No characters in inventory')
+
+async def info(ctx, user):
+    message = await ctx.channel.send('SCRAPING DATA...')
+
+    user_id = str(user.id)
+    user_name = str(user.name)
+    user_avatar = user.display_avatar.url
+
+    ardb_cursor.execute("""
+                SELECT * FROM characters WHERE id = ?
+            """, (ctx.author.id,))
+    characters = ardb_cursor.fetchall()
+    if characters:
+        character_list = ''
+        for character in characters:
+            character_list += str(character[1]) + '\n'
+
+    embed = discord.Embed(title=f'{user_name}\n{user_id}', color=discord.Color.red())
+    embed.set_image(url=user_avatar)
+
+    await message.edit(content=None, embed=embed)
+
 
 bot.run(TOKEN)
