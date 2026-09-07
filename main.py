@@ -72,6 +72,8 @@ async def on_message(ctx):
             await animeroll(ctx)
         elif ctx.content.endswith('status'):
             await status(ctx)
+        elif ctx.content.endswith('animeinv'):
+            await animeinv(ctx)
 
 async def status(ctx):
     if not ctx.author.bot:
@@ -80,9 +82,9 @@ async def status(ctx):
         if not response.status_code == 200:
             anime_roll_status = False
 
-        await ctx.send('skynet: ONLINE')
-        if anime_roll_status: await ctx.send('skynet - animeroll: ONLINE')
-        else: await ctx.send('skynet - animeroll: OFFLINE')
+        await ctx.channel.send('skynet: ONLINE')
+        if anime_roll_status: await ctx.channel.send('skynet - animeroll: ONLINE')
+        else: await ctx.channel.send('skynet - animeroll: OFFLINE')
 
 async def animeroll(ctx):
     if not ctx.author.bot:
@@ -137,5 +139,21 @@ async def animeroll(ctx):
         VALUES (?, ?)
         """, (ctx.author.id, character['name']['full']))
         anime_roll_db_connection.commit()
+
+async def animeinv(ctx):
+    if not ctx.author.bot:
+        message = await ctx.channel.send('FETCHING...')
+        ardb_cursor.execute("""
+            SELECT * FROM characters WHERE id = ?
+        """, (ctx.author.id,))
+        characters = ardb_cursor.fetchall()
+
+        if characters:
+            character_list = ''
+            for character in characters:
+                character_list += str(character[1]) + '\n'
+            await message.edit(content=character_list)
+        else:
+            await message.edit(content='No characters in inventory')
 
 bot.run(TOKEN)
