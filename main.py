@@ -6,6 +6,7 @@ import random
 import sqlite3
 import time
 import json
+import datetime
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -195,11 +196,16 @@ async def animeinv(ctx):
             await message.edit(content='No characters in inventory')
 
 async def info(ctx, user):
+    def get_creation_date(user_id: int):
+        timestamp = ((user_id >> 22) + 1420070400000) / 1000
+        return datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+
     message = await ctx.channel.send('SCRAPING DATA...')
 
     user_id = str(user.id)
     user_name = str(user.name)
     user_avatar = user.display_avatar.url
+    user_creation_date = get_creation_date(user.id)
 
     ardb_cursor.execute("""
                 SELECT * FROM characters WHERE id = ?
@@ -210,7 +216,7 @@ async def info(ctx, user):
         for character in characters:
             character_list += str(character[1]) + '\n'
 
-    embed = discord.Embed(title=f'{user_name}\n{user_id}', color=discord.Color.red())
+    embed = discord.Embed(title=f'{user_name}\n{user_id}\n{user_creation_date}', color=discord.Color.red())
     embed.set_image(url=user_avatar)
 
     await message.edit(content=None, embed=embed)
