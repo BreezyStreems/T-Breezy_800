@@ -85,6 +85,8 @@ async def on_message(ctx):
     if ctx.author.id in user_command_timers:
         if time.time() - user_command_timers[ctx.author.id] < 1.5:
             return
+        else:
+            user_command_timers[ctx.author.id] = 0
 
     user_command_timers[ctx.author.id] = time.time()
 
