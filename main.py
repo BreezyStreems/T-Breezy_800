@@ -4,6 +4,7 @@ import sys
 import requests
 import random
 import sqlite3
+import time
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -69,7 +70,7 @@ anime_roll_db_connection.commit()
 
 # ------------------ IMPORTANT VARIABLES
 
-
+user_command_timers = {}
 
 # ------------------ DISCORD EVENTS
 @bot.event
@@ -80,6 +81,12 @@ async def on_ready():
 async def on_message(ctx):
     if ctx.author == bot.user:
         return
+
+    if ctx.author.id in user_command_timers:
+        if time.time() - user_command_timers[ctx.author.id] < 1.5:
+            return
+
+    user_command_timers[ctx.author.id] = time.time()
 
     if ctx.content.startswith('B| '):
         if ctx.content.endswith('animeroll'):
