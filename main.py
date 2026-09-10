@@ -87,10 +87,11 @@ anime_roll_db_connection.commit()
 
 user_command_timers = {}
 waiting_for_input = {}
+dev_server = discord.get_guild('''get my dev server guild id''')
 
 # ------------------ GEMINI VARIABLES
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+if GEMINI_API_KEY: client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ------------------ DISCORD EVENTS
 @bot.event
@@ -100,7 +101,7 @@ async def on_ready():
 @bot.event
 async def on_message(ctx):
     if ctx.author == bot.user:
-        return
+        if not ctx.author.id == bot.id: return
 
     if ctx.author.id in user_command_timers:
         if time.time() - user_command_timers[ctx.author.id] < 1.5:
@@ -298,6 +299,8 @@ async def development_console():
             print('skynet: ONLINE')
             if anime_roll_status: print('skynet - animeroll: ONLINE')
             else: print('skynet - animeroll: OFFLINE')
+        elif command.startswith('send_message'):
+            pass
 
 async def main():
     await asyncio.gather(
