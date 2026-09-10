@@ -7,6 +7,7 @@ import sqlite3
 import time
 import json
 import datetime
+import asyncio
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -128,8 +129,18 @@ async def status(ctx):
 async def animeroll(ctx):
     if not ctx.author.bot:
         async def roll_anime_two(message, variables):
-            response = requests.post('https://graphql.anilist.co', json={'query': anime_roll_url, 'variables':
-                variables}, headers=headers, timeout=5)
+            offset = random.randint(0, 10000)
+            response = requests.get(
+                "https://kitsu.io/api/edge/characters",
+                params={
+                    "page[limit]": 20,
+                    "page[offset]": offset
+                },
+                headers={
+                    "Accept": "application/vnd.api+json"
+                },
+                timeout=10
+            )
 
             if response.status_code != 200:
                 print(f'skynet: ERROR - no character found | status code {response.status_code} - WARNING')
@@ -221,5 +232,38 @@ async def info(ctx, user):
 
     await message.edit(content=None, embed=embed)
 
+# ------------------ DEVELOPMENT CONSOLE
 
-bot.run(TOKEN)
+async def development_console():
+    while not bot.is_closed():
+        command = await asyncio.to_thread(input, 'skynet>\n')
+
+        if command == 'status':
+            anime_roll_status = True
+            response = requests.get(
+                "https://kitsu.io/api/edge/characters",
+                params={
+                    "page[limit]": 20,
+                    "page[offset]": 21
+                },
+                headers={
+                    "Accept": "application/vnd.api+json"
+                },
+                timeout=10
+            )
+            if not response.status_code == 200:
+                anime_roll_status = False
+                print(response.status_code)
+    
+            print('skynet: ONLINE')
+            if anime_roll_status: print('skynet - animeroll: ONLINE')
+            else: print('skynet - animeroll: OFFLINE')
+
+async def main():
+    await asyncio.gather(
+        bot.start(TOKEN),
+        development_console()
+    )
+
+
+asyncio.run(main())
