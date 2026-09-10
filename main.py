@@ -261,6 +261,17 @@ async def info(ctx, user):
 
     await message.edit(content=None, embed=embed)
 
+async def appraisechar(ctx, character):
+    pass
+
+async def accept_user_input(ctx, user_input):
+    if user_input == 'y':
+        if waiting_for_input[ctx.author.id][0] == 'replace char':
+            ardb_cursor.execute("""
+                REPLACE INTO characters (id, character)
+                VALUES (?, ?)
+            """, (ctx.author.id, waiting_for_input[ctx.author.id][1]['attributes']['name']))
+
 # ------------------ DEVELOPMENT CONSOLE
 
 async def development_console():
