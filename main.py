@@ -128,7 +128,7 @@ async def status(ctx):
 
 async def animeroll(ctx):
     if not ctx.author.bot:
-        async def roll_anime_two(message, variables):
+        async def roll_anime(message):
             offset = random.randint(0, 10000)
             response = requests.get(
                 "https://kitsu.io/api/edge/characters",
@@ -148,7 +148,8 @@ async def animeroll(ctx):
                                            f'WARNING')
                 return False, None
 
-            result = response.json().get('data', {}).get('Character')
+            result = response.json()['data']
+            result = random.choice(result)
 
             if not result:
                 print('skynet: ERROR - no character found - WARNING')
@@ -158,17 +159,16 @@ async def animeroll(ctx):
             character = result
 
             embed = discord.Embed(
-                title=character['name']['full'],
-                description=f'[IMAGE]({character['siteUrl']})',
+                title=character["attributes"]["name"],
+                description=f'[LINK]({character["attributes"]["url"]})',
                 color=discord.Color.blue()
             )
-            embed.set_image(url=character['image']['large'])
+            embed.set_image(url=character["attributes"]["image"]["large"])
             await message.edit(content='ROLLED!', embed=embed)
             return True, character
 
-        variables = {'id': random.randint(1, 300000)}
         message = await ctx.channel.send('ROLLING...')
-        status, character = await roll_anime_two(message, variables)
+        status, character = await roll_anime(message)
         if not status:
             print('skynet: ERROR - roll failed. aborting command - WARNING')
             return
@@ -187,7 +187,7 @@ async def animeroll(ctx):
         ardb_cursor.execute("""
         INSERT INTO characters (id, character)
         VALUES (?, ?)
-        """, (ctx.author.id, character['name']['full']))
+        """, (ctx.author.id, character["attributes"]["name"]))
         anime_roll_db_connection.commit()
 
 async def animeinv(ctx):
