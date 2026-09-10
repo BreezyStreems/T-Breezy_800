@@ -1,7 +1,6 @@
 import discord
 import os
 import sys
-import requests
 import random
 import sqlite3
 import time
@@ -10,12 +9,15 @@ import datetime
 
 from discord.ext import commands
 from dotenv import load_dotenv
+from google import genai
+from curl_cffi import requests
 
 # ------------------ ENV VARIABLES
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
 trusted_users = json.loads(os.getenv('TRUSTED_USERS', '[]'))
+GEMINI_API_KEY = os.getenv('GEMINI_API')
 if not TOKEN:
     print('skynet: ERROR - no token - FATAL')
     sys.exit()
@@ -24,6 +26,11 @@ if not trusted_users:
     trusted_to_add = input('input a trusted user: ')
     trusted_users = []
     trusted_users.append(trusted_to_add)
+if not GEMINI_API_KEY:
+    print('skynet: ERROR - no GEMINI API key - CRITICAL')
+    user_resp = input('continue? [y/n]')
+    if not user_resp == 'y':
+        sys.exit()
 
 # ------------------ ANIME ROLL VARIABLES
 
@@ -70,7 +77,7 @@ ardb_cursor.execute("""
         CREATE TABLE IF NOT EXISTS characters(
             id INTEGER,
             character TEXT,
-            power INTEGER
+            power INTEGER DEFAULT 0
         )
         """)
 anime_roll_db_connection.commit()
@@ -78,6 +85,11 @@ anime_roll_db_connection.commit()
 # ------------------ IMPORTANT VARIABLES
 
 user_command_timers = {}
+waiting_for_input = {}
+
+# ------------------ GEMINI VARIABLES
+
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ------------------ DISCORD EVENTS
 @bot.event
@@ -97,6 +109,12 @@ async def on_message(ctx):
 
     user_command_timers[ctx.author.id] = time.time()
 
+    if ctx.author.id in waiting_for_input:
+        if ctx.content.startswith('B '):
+            await accept_user_input(ctx, ctx.content[2:])
+        elif ctx.content.startswith('B| '):
+            ctx.channel.send('terminate last process before starting a new command')
+
     if ctx.content.startswith('B| '):
         if ctx.content.endswith('animeroll'):
             await animeroll(ctx)
@@ -104,6 +122,8 @@ async def on_message(ctx):
             await status(ctx)
         elif ctx.content.endswith('animeinv'):
             await animeinv(ctx)
+        elif ctx.content.startswith('B| appraisechar'):
+            await appraisechar(ctx, ctx.content[15:])
 
         # BREEZY COMMANDS
         if ctx.author.id in trusted_users:
@@ -129,10 +149,10 @@ async def animeroll(ctx):
     if not ctx.author.bot:
         async def roll_anime_two(message, variables):
             response = requests.post('https://graphql.anilist.co', json={'query': anime_roll_url, 'variables':
-                variables}, headers=headers, timeout=5)
+                variables}, impersonate='chrome', timeout=5)
 
             if response.status_code != 200:
-                print(f'skynet: ERROR - no character found | status code {response.status_code} - WARNING')
+                print(f'skynet: ERROR - roll failed | status code {response.status_code} - WARNING')
                 await message.edit(content=f'skynet: ERROR - no character found | status code {response.status_code} - '
                                            f'WARNING')
                 return False, None
@@ -159,25 +179,34 @@ async def animeroll(ctx):
         message = await ctx.channel.send('ROLLING...')
         status, character = await roll_anime_two(message, variables)
         if not status:
-            print('skynet: ERROR - roll failed. aborting command - WARNING')
+            print('skynet: ERROR - roll failed - WARNING')
             return
 
         ardb_cursor.execute("""
-        INSERT OR IGNORE INTO users (id)
-        VALUES (?)
-        """, (ctx.author.id,))
-
-        ardb_cursor.execute("""
-        UPDATE users
-        SET rolls = rolls + 1
-        WHERE id = ?
-        """, (ctx.author.id,))
-
-        ardb_cursor.execute("""
-        INSERT INTO characters (id, character)
-        VALUES (?, ?)
+            SELECT * FROM characters WHERE id = ? AND character = ?
         """, (ctx.author.id, character['name']['full']))
-        anime_roll_db_connection.commit()
+        characters = ardb_cursor.fetchone()
+        if characters:
+            await message.edit(content=f'CHARACTER ALREADY EXISTS - do you wish to overwrite a character with '
+                                       f'{characters['power']} power? [B y/ B n]')
+            waiting_for_input[ctx.author.id] = ['replace char', character]
+        else:
+            ardb_cursor.execute("""
+            INSERT OR IGNORE INTO users (id)
+            VALUES (?)
+            """, (ctx.author.id,))
+
+            ardb_cursor.execute("""
+            UPDATE users
+            SET rolls = rolls + 1
+            WHERE id = ?
+            """, (ctx.author.id,))
+
+            ardb_cursor.execute("""
+            INSERT INTO characters (id, character)
+            VALUES (?, ?)
+            """, (ctx.author.id, character['name']['full']))
+            anime_roll_db_connection.commit()
 
 async def animeinv(ctx):
     if not ctx.author.bot:
@@ -221,5 +250,15 @@ async def info(ctx, user):
 
     await message.edit(content=None, embed=embed)
 
+async def appraisechar(ctx, character):
+    pass
+
+async def accept_user_input(ctx, user_input):
+    if user_input == 'y':
+        if waiting_for_input[ctx.author.id][0] == 'replace char':
+            ardb_cursor.execute("""
+                REPLACE INTO characters (id, character)
+                VALUES (?, ?)
+            """, (ctx.author.id, waiting_for_input[ctx.author.id][1]['name']['full']))
 
 bot.run(TOKEN)
