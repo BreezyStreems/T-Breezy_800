@@ -104,14 +104,14 @@ async def on_ready():
     
     print(f'skynet initialized: {bot.user}')
 
-    dev_server = bot.get_guild('1345760072776679495')
+    dev_server = bot.get_guild(1345760072776679495)
 
     if dev_server is None:
         for guild in bot.guilds:
             if guild.id == 1345760072776679495:
                 dev_server = guild
 
-    dev_channel = dev_server.get_channel('general3')
+    dev_channel = dev_server.get_channel(1347697748518113360)
 
     if dev_channel is None:
         for channel in dev_server.channels:
