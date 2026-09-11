@@ -101,7 +101,6 @@ async def on_ready():
     global dev_channel
     global dev_server
 
-    
     print(f'skynet initialized: {bot.user}')
 
     dev_server = bot.get_guild(1345760072776679495)
@@ -123,8 +122,7 @@ async def on_ready():
 @bot.event
 async def on_message(ctx):
     print(f'skynet: releveant message captured {ctx.content}')
-    if ctx.author.bot:
-        if not ctx.author.id == bot.id: return
+    if ctx.author.bot and ctx.author.id != bot.user.id: return
 
     if ctx.author.id in user_command_timers:
         if time.time() - user_command_timers[ctx.author.id] < 1.5:
@@ -141,6 +139,7 @@ async def on_message(ctx):
             ctx.channel.send('terminate last process before starting a new command')
 
     if ctx.content.startswith('B| '):
+        print('command ran')
         if ctx.content.endswith('animeroll'):
             await animeroll(ctx)
         elif ctx.content.endswith('status'):
@@ -160,105 +159,103 @@ async def on_message(ctx):
 # ------------------ FUNCTIONS
 
 async def status(ctx):
-    if not ctx.author.bot:
-        anime_roll_status = True
-        response = requests.post("https://graphql.anilist.co", json={"query": anime_roll_url, 'variables': {'id': 1}}, )
-        if not response.status_code == 200:
-            anime_roll_status = False
+    anime_roll_status = True
+    response = requests.post("https://graphql.anilist.co", json={"query": anime_roll_url, 'variables': {'id': 1}}, )
+    if not response.status_code == 200:
+        anime_roll_status = False
 
-        await ctx.channel.send('skynet: ONLINE')
-        if anime_roll_status: await ctx.channel.send('skynet - animeroll: ONLINE')
-        else: await ctx.channel.send('skynet - animeroll: OFFLINE')
+    await ctx.channel.send('skynet: ONLINE')
+    if anime_roll_status: await ctx.channel.send('skynet - animeroll: ONLINE')
+    else: await ctx.channel.send('skynet - animeroll: OFFLINE')
+    
 
 async def animeroll(ctx):
-    if not ctx.author.bot:
-        async def roll_anime(message):
-            offset = random.randint(0, 10000)
-            response = requests.get(
-                "https://kitsu.io/api/edge/characters",
-                params={
-                    "page[limit]": 20,
-                    "page[offset]": offset
-                },
-                headers={
-                    "Accept": "application/vnd.api+json"
-                },
-                timeout=10
-            )
+    async def roll_anime(message):
+        offset = random.randint(0, 10000)
+        response = requests.get(
+            "https://kitsu.io/api/edge/characters",
+            params={
+                "page[limit]": 20,
+                "page[offset]": offset
+            },
+            headers={
+                "Accept": "application/vnd.api+json"
+            },
+            timeout=10
+        )
 
-            if response.status_code != 200:
-                print(f'skynet: ERROR - roll failed | status code {response.status_code} - WARNING')
-                await message.edit(content=f'skynet: ERROR - no character found | status code {response.status_code} - '
-                                           f'WARNING')
-                return False, None
+        if response.status_code != 200:
+            print(f'skynet: ERROR - roll failed | status code {response.status_code} - WARNING')
+            await message.edit(content=f'skynet: ERROR - no character found | status code {response.status_code} - '
+                                        f'WARNING')
+            return False, None
 
-            result = response.json()['data']
-            result = random.choice(result)
-            print(result['attributes']['names']['en'])
+        result = response.json()['data']
+        result = random.choice(result)
+        print(result['attributes']['names']['en'])
 
-            if not result:
-                print('skynet: ERROR - no character found - WARNING')
-                await message.edit(content='skynet: ERROR - no character found - WARNING')
-                return False, None
+        if not result:
+            print('skynet: ERROR - no character found - WARNING')
+            await message.edit(content='skynet: ERROR - no character found - WARNING')
+            return False, None
 
-            character = result
+        character = result
 
-            embed = discord.Embed(
-                title=character["attributes"]["name"],
-                description=f'[LINK]({character["attributes"]["url"]})',
-                color=discord.Color.blue()
-            )
-            embed.set_image(url=character["attributes"]["image"]["large"])
-            await message.edit(content='ROLLED!', embed=embed)
-            return True, character
+        embed = discord.Embed(
+            title=character["attributes"]["name"],
+            description=f'[LINK]({character["attributes"]["url"]})',
+            color=discord.Color.blue()
+        )
+        embed.set_image(url=character["attributes"]["image"]["large"])
+        await message.edit(content='ROLLED!', embed=embed)
+        return True, character
 
-        message = await ctx.channel.send('ROLLING...')
-        status, character = await roll_anime(message)
-        if not status:
-            print('skynet: ERROR - roll failed - WARNING')
-            return
+    message = await ctx.channel.send('ROLLING...')
+    status, character = await roll_anime(message)
+    if not status:
+        print('skynet: ERROR - roll failed - WARNING')
+        return
+
+    ardb_cursor.execute("""
+        SELECT * FROM characters WHERE id = ? AND character = ?
+    """, (ctx.author.id, character['name']['full']))
+    characters = ardb_cursor.fetchone()
+    if characters:
+        await message.edit(content=f'CHARACTER ALREADY EXISTS - do you wish to overwrite a character with '
+                                    f'{characters["power"]} power? [B y/ B n]')
+        waiting_for_input[ctx.author.id] = ['replace char', character]
+    else:
+        ardb_cursor.execute("""
+        INSERT OR IGNORE INTO users (id)
+        VALUES (?)
+        """, (ctx.author.id,))
 
         ardb_cursor.execute("""
-            SELECT * FROM characters WHERE id = ? AND character = ?
-        """, (ctx.author.id, character['name']['full']))
-        characters = ardb_cursor.fetchone()
-        if characters:
-            await message.edit(content=f'CHARACTER ALREADY EXISTS - do you wish to overwrite a character with '
-                                       f'{characters['power']} power? [B y/ B n]')
-            waiting_for_input[ctx.author.id] = ['replace char', character]
-        else:
-            ardb_cursor.execute("""
-            INSERT OR IGNORE INTO users (id)
-            VALUES (?)
-            """, (ctx.author.id,))
+        UPDATE users
+        SET rolls = rolls + 1
+        WHERE id = ?
+        """, (ctx.author.id,))
 
-            ardb_cursor.execute("""
-            UPDATE users
-            SET rolls = rolls + 1
-            WHERE id = ?
-            """, (ctx.author.id,))
-
-        ardb_cursor.execute("""
-        INSERT INTO characters (id, character)
-        VALUES (?, ?)
-        """, (ctx.author.id, character["attributes"]["name"]))
-        anime_roll_db_connection.commit()
+    ardb_cursor.execute("""
+    INSERT INTO characters (id, character)
+    VALUES (?, ?)
+    """, (ctx.author.id, character["attributes"]["name"]))
+    anime_roll_db_connection.commit()
 
 async def animeinv(ctx):
-    if not ctx.author.bot:
-        message = await ctx.channel.send('FETCHING...')
-        ardb_cursor.execute("""
-            SELECT * FROM characters WHERE id = ?
-        """, (ctx.author.id,))
-        characters = ardb_cursor.fetchall()
+    message = await ctx.channel.send('FETCHING...')
+    ardb_cursor.execute("""
+        SELECT * FROM characters WHERE id = ?
+    """, (ctx.author.id,))
+    characters = ardb_cursor.fetchall()
 
-        if characters:
-            character_list = ''
-            for character in characters:
-                character_list += str(character[1]) + '\n'
-            await message.edit(content=character_list)
-        else:
-            await message.edit(content='No characters in inventory')
+    if characters:
+        character_list = ''
+        for character in characters:
+            character_list += str(character[1]) + '\n'
+        await message.edit(content=character_list)
+    else:
+        await message.edit(content='No characters in inventory')
 
 async def info(ctx, user):
     def get_creation_date(user_id: int):
