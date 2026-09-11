@@ -97,6 +97,11 @@ if GEMINI_API_KEY: client = genai.Client(api_key=GEMINI_API_KEY)
 # ------------------ DISCORD EVENTS
 @bot.event
 async def on_ready():
+
+    global dev_channel
+    global dev_server
+
+    
     print(f'skynet initialized: {bot.user}')
 
     dev_server = bot.get_guild('1345760072776679495')
@@ -108,6 +113,11 @@ async def on_ready():
 
     dev_channel = dev_server.get_channel('general3')
 
+    if dev_channel is None:
+        for channel in dev_server.channels:
+            if channel.name == 'general3':
+                dev_channel = channel
+
     print(f'skynet dev server connection established: {dev_server} -> {dev_channel}')
 
 @bot.event
@@ -115,6 +125,8 @@ async def on_message(ctx):
     if ctx.author == bot.user:
         if not ctx.author.id == bot.id: return
 
+    print(f'skynet: releveant message captured {ctx.content}')
+    
     if ctx.author.id in user_command_timers:
         if time.time() - user_command_timers[ctx.author.id] < 1.5:
             return
@@ -312,8 +324,11 @@ async def development_console():
             print('skynet: ONLINE')
             if anime_roll_status: print('skynet - animeroll: ONLINE')
             else: print('skynet - animeroll: OFFLINE')
-        elif command.startswith('send_message'):
-            pass
+        elif command.startswith('send_message '):
+            message_to_send = command[13:]
+            await dev_channel.send(message_to_send)
+
+# ------------------ MAIN FUNCTION START
 
 async def main():
     await asyncio.gather(
