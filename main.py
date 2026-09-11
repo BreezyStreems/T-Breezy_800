@@ -122,11 +122,10 @@ async def on_ready():
 
 @bot.event
 async def on_message(ctx):
-    if ctx.author == bot.user:
+    print(f'skynet: releveant message captured {ctx.content}')
+    if ctx.author.bot:
         if not ctx.author.id == bot.id: return
 
-    print(f'skynet: releveant message captured {ctx.content}')
-    
     if ctx.author.id in user_command_timers:
         if time.time() - user_command_timers[ctx.author.id] < 1.5:
             return
@@ -326,6 +325,7 @@ async def development_console():
             else: print('skynet - animeroll: OFFLINE')
         elif command.startswith('send_message '):
             message_to_send = command[13:]
+            print(message_to_send)
             await dev_channel.send(message_to_send)
 
 # ------------------ MAIN FUNCTION START
