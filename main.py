@@ -87,7 +87,8 @@ anime_roll_db_connection.commit()
 
 user_command_timers = {}
 waiting_for_input = {}
-dev_server = discord.get_guild('''get my dev server guild id''')
+dev_server = None # set in on ready
+dev_channel = None # set in on ready
 
 # ------------------ GEMINI VARIABLES
 
@@ -97,6 +98,17 @@ if GEMINI_API_KEY: client = genai.Client(api_key=GEMINI_API_KEY)
 @bot.event
 async def on_ready():
     print(f'skynet initialized: {bot.user}')
+
+    dev_server = bot.get_guild('1345760072776679495')
+
+    if dev_server is None:
+        for guild in bot.guilds:
+            if guild.id == 1345760072776679495:
+                dev_server = guild
+
+    dev_channel = dev_server.get_channel('general3')
+
+    print(f'skynet dev server connection established: {dev_server} -> {dev_channel}')
 
 @bot.event
 async def on_message(ctx):
@@ -171,6 +183,7 @@ async def animeroll(ctx):
 
             result = response.json()['data']
             result = random.choice(result)
+            print(result['attributes']['names']['en'])
 
             if not result:
                 print('skynet: ERROR - no character found - WARNING')
