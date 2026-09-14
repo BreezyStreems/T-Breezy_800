@@ -7,6 +7,7 @@ import time
 import json
 import datetime
 import asyncio
+import traceback
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -121,7 +122,6 @@ async def on_ready():
 
 @bot.event
 async def on_message(ctx):
-    print(f'skynet: releveant message captured {ctx.content}')
     if ctx.author.bot and ctx.author.id != bot.user.id: return
 
     if ctx.author.id in user_command_timers:
@@ -136,18 +136,18 @@ async def on_message(ctx):
         if ctx.content.startswith('B '):
             await accept_user_input(ctx, ctx.content[2:])
         elif ctx.content.startswith('B| '):
-            ctx.channel.send('terminate last process before starting a new command')
+            await ctx.channel.send('terminate last process before starting a new command')
 
     if ctx.content.startswith('B| '):
-        print('command ran')
         if ctx.content.endswith('animeroll'):
             await animeroll(ctx)
         elif ctx.content.endswith('status'):
             await status(ctx)
         elif ctx.content.endswith('animeinv'):
             await animeinv(ctx)
-        elif ctx.content.startswith('B| appraisechar'):
-            await appraisechar(ctx, ctx.content[15:])
+        elif ctx.content.startswith('B| appraisechar '):
+            print(ctx.content[16:])
+            await appraisechar(ctx, ctx.content[16:])
 
         # BREEZY COMMANDS
         if ctx.author.id in trusted_users:
@@ -160,7 +160,7 @@ async def on_message(ctx):
 
 async def status(ctx):
     anime_roll_status = True
-    response = requests.post("https://graphql.anilist.co", json={"query": anime_roll_url, 'variables': {'id': 1}}, )
+    response = requests.get("https://kitsu.io/api/edge/characters", params={"page[limit]": 20, "page[offset]": 21}, headers={"Accept": "application/vnd.api+json"}, timeout=10)
     if not response.status_code == 200:
         anime_roll_status = False
 
@@ -181,7 +181,7 @@ async def animeroll(ctx):
             headers={
                 "Accept": "application/vnd.api+json"
             },
-            timeout=10
+            timeout=5
         )
 
         if response.status_code != 200:
@@ -192,7 +192,6 @@ async def animeroll(ctx):
 
         result = response.json()['data']
         result = random.choice(result)
-        print(result['attributes']['names']['en'])
 
         if not result:
             print('skynet: ERROR - no character found - WARNING')
@@ -203,10 +202,10 @@ async def animeroll(ctx):
 
         embed = discord.Embed(
             title=character["attributes"]["name"],
-            description=f'[LINK]({character["attributes"]["url"]})',
+            description=f'[LINK]({character["links"]["self"]})',
             color=discord.Color.blue()
         )
-        embed.set_image(url=character["attributes"]["image"]["large"])
+        embed.set_image(url=character["attributes"]["image"]["original"])
         await message.edit(content='ROLLED!', embed=embed)
         return True, character
 
@@ -218,11 +217,11 @@ async def animeroll(ctx):
 
     ardb_cursor.execute("""
         SELECT * FROM characters WHERE id = ? AND character = ?
-    """, (ctx.author.id, character['name']['full']))
+    """, (ctx.author.id, character['attributes']['name']))
     characters = ardb_cursor.fetchone()
     if characters:
         await message.edit(content=f'CHARACTER ALREADY EXISTS - do you wish to overwrite a character with '
-                                    f'{characters["power"]} power? [B y/ B n]')
+                                    f'{characters[2]} power? [B y/ B n]')
         waiting_for_input[ctx.author.id] = ['replace char', character]
     else:
         ardb_cursor.execute("""
@@ -236,11 +235,11 @@ async def animeroll(ctx):
         WHERE id = ?
         """, (ctx.author.id,))
 
-    ardb_cursor.execute("""
-    INSERT INTO characters (id, character)
-    VALUES (?, ?)
-    """, (ctx.author.id, character["attributes"]["name"]))
-    anime_roll_db_connection.commit()
+        ardb_cursor.execute("""
+        INSERT INTO characters (id, character)
+        VALUES (?, ?)
+        """, (ctx.author.id, character["attributes"]["name"]))
+        anime_roll_db_connection.commit()
 
 async def animeinv(ctx):
     message = await ctx.channel.send('FETCHING...')
@@ -252,7 +251,7 @@ async def animeinv(ctx):
     if characters:
         character_list = ''
         for character in characters:
-            character_list += str(character[1]) + '\n'
+            character_list += str(character[1]) + ' -> ' + str(character[2]) + '\n'
         await message.edit(content=character_list)
     else:
         await message.edit(content='No characters in inventory')
@@ -269,9 +268,12 @@ async def info(ctx, user):
     user_avatar = user.display_avatar.url
     user_creation_date = get_creation_date(user.id)
 
+    if user_id is None or user_name is None or user_avatar is None or user_creation_date is None:
+        print('skynet: ERROR - info failed - WARNING')
+
     ardb_cursor.execute("""
                 SELECT * FROM characters WHERE id = ?
-            """, (ctx.author.id,))
+            """, (user_id,))
     characters = ardb_cursor.fetchall()
     if characters:
         character_list = ''
@@ -284,15 +286,160 @@ async def info(ctx, user):
     await message.edit(content=None, embed=embed)
 
 async def appraisechar(ctx, character):
-    pass
+    message = await ctx.channel.send('APPRAISING...')
+    ardb_cursor.execute("""
+            SELECT * FROM characters WHERE id = ? AND character = ? AND power = ?
+        """, (ctx.author.id, character, 0))
+    character = ardb_cursor.fetchone()
+
+    if character:
+        response = requests.get("https://kitsu.io/api/edge/characters", params={"filter[name]": character[1],
+            "page[limit]": 10}, headers={"Accept": "application/vnd.api+json"},
+            timeout=5)
+
+        if not response.status_code == 200:
+            print('skynet: ERROR - appraisechar failed | kitsu request - WARNING')
+            await message.edit(content='skynet: ERROR - appraisechar failed | kitsu request - WARNING')
+            return
+
+        result = response.json()["data"][0]
+
+        media_response = requests.get(f"https://kitsu.io/api/edge/characters/{result['id']}/relationships/primary-media",
+            timeout=5)
+
+        if not media_response.status_code == 200:
+            print('skynet: ERROR - appraisechar failed - kitsu media request - WARNING')
+            await message.edit(content='skynet: ERROR - appraisechar failed - kitsu media request - WARNING')
+            return
+
+        if 'manga' in media_response.json()['data']['type']:
+            media_response = requests.get(f"https://kitsu.io/api/edge/manga/{media_response.json()['data']['id']}",
+                headers={"Accept": "application/vnd.api+json"}, timeout=5)
+        elif 'anime' in media_response.json()['data']['type']:
+            media_response = requests.get(f"https://kitsu.io/api/edge/anime/{media_response.json()['data']['id']}",
+                headers={"Accept": "application/vnd.api+json"}, timeout=5)
+
+        if not media_response.status_code == 200:
+            print('skynet: ERROR - appraisechar failed - kitsu media request - WARNING')
+            await message.edit(content='skynet: ERROR - appraisechar failed - kitsu media request - WARNING')
+            return
+
+        anime_title = media_response.json()["data"]["attributes"]["titles"]['en']
+
+        prompt = ('ANIME CHARACTER APPRAISING | APPRAISE THIS CHARACTER BY GIVING IT A NUMBER OF ITS POWER\n'
+                  'you will give a character a number based on its power level in their strongest form.\n'
+                  'the scale is as so: 0 - they can break a stick all the way to 10000 - they can destroy the '
+                  'multiverse\n'
+                  f'CHARACTER NAME: {character[1]}\n'
+                  f'CHARACTER ANIME(S)/MANGA(S): {anime_title}\n'
+                  f'IMPORTANT - respond with only the number, nothing else.')
+
+        response = client.models.generate_content(
+            model='gemini-3.5-flash-lite',
+            contents=prompt,
+        )
+
+        if response.text == '' or response.text is None:
+            print('skynet: ERROR - appraisechar failed | genai content - WARNING')
+            await message.edit(content='skynet: ERROR - appraisechar failed | genai content - WARNING')
+            return
+
+        power = response.text.strip()
+
+        if not power.isdigit():
+            print('skynet: ERROR - appraisechar failed - genai content | contained somethign other than numbers - '
+                  'WARNING')
+            await message.edit(content='skynet: ERROR - appraisechar failed - genai content | contained somethign other than numbers - '
+                  'WARNING')
+            return
+
+        ardb_cursor.execute("""
+            UPDATE characters
+            SET power = ?
+            WHERE id = ? AND character = ?
+        """, (int(power), ctx.author.id, character[1]))
+        anime_roll_db_connection.commit()
+
+        await message.edit(content='APPRAISED!!\n'
+                                   f'{character[1]} aquired power: {power} - {await check_rarity(int(power))}')
+
+    else:
+        print('skynet: ERROR character not found or already appraised - NEGLIGIBLE')
+        await message.edit(content='skynet: ERROR character not found or already appraised - NEGLIBLE')
 
 async def accept_user_input(ctx, user_input):
     if user_input == 'y':
         if waiting_for_input[ctx.author.id][0] == 'replace char':
             ardb_cursor.execute("""
-                REPLACE INTO characters (id, character)
+                UPDATE characters
+                SET power = 0
+                WHERE id = ? AND character = ?
                 VALUES (?, ?)
             """, (ctx.author.id, waiting_for_input[ctx.author.id][1]['attributes']['name']))
+            anime_roll_db_connection.commit()
+    elif user_input == 'n':
+        if waiting_for_input[ctx.author.id][0] == 'replace char':
+            waiting_for_input[ctx.author.id] = None
+
+async def check_rarity(power):
+    if power >= 9750:
+        tier = '2-A | Multiverse level+'
+    elif power >= 9500:
+        tier = '2-B | Multiverse level'
+    elif power >= 9000:
+        tier = '2-C | Low Multiverse level'
+    elif power >= 8650:
+        tier = 'Low 2-C | Universe level+'
+    elif power >= 8000:
+        tier = '3-A | Universe level'
+    elif power >= 7500:
+        tier = 'High 3-A | High Universe level'
+    elif power >= 7000:
+        tier = '3-B | Multi-Galaxy level'
+    elif power >= 6500:
+        tier = '3-C | Galaxy level'
+    elif power >= 6000:
+        tier = '4-A | Multi-Solar System level'
+    elif power >= 5500:
+        tier = '4-B | Solar System level'
+    elif power >= 5000:
+        tier = '4-C | Star level'
+    elif power >= 4500:
+        tier = 'High 4-C | Large Star level'
+    elif power >= 4000:
+        tier = '5-A | Large Planet level'
+    elif power >= 3500:
+        tier = '5-B | Planet level'
+    elif power >= 3000:
+        tier = 'Low 5-B | Small Planet level'
+    elif power >= 2500:
+        tier = '5-C | Moon level'
+    elif power >= 2000:
+        tier = '6-A | Continent level'
+    elif power >= 1500:
+        tier = '6-B | Country level'
+    elif power >= 1000:
+        tier = '7-A | Mountain level'
+    elif power >= 750:
+        tier = '7-B | City level'
+    elif power >= 500:
+        tier = '8-B | City Block level'
+    elif power >= 250:
+        tier = '8-C | Building level'
+    elif power >= 100:
+        tier = '9-A | Small Building level'
+    elif power >= 50:
+        tier = '9-B | Wall level'
+    elif power >= 25:
+        tier = '9-C | Street level'
+    elif power >= 10:
+        tier = '10-A | Athlete level'
+    elif power >= 1:
+        tier = '10-B | Human level'
+    else:
+        tier = '10-C | Below Average Human level'
+
+    return tier
 
 # ------------------ DEVELOPMENT CONSOLE
 
@@ -324,6 +471,12 @@ async def development_console():
             message_to_send = command[13:]
             print(message_to_send)
             await dev_channel.send(message_to_send)
+        elif command.startswith('check_perms'):
+            guild_id = input('guild id >')
+            perms = bot.get_guild(int(guild_id)).me.guild_permissions
+            perms = [perm_name for perm_name, enabled in perms if enabled]
+            print(perms)
+
 
 # ------------------ MAIN FUNCTION START
 
@@ -333,5 +486,7 @@ async def main():
         development_console()
     )
 
-
-asyncio.run(main())
+try:
+    asyncio.run(main())
+except Exception as e:
+    traceback.print_exc()
