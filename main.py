@@ -479,6 +479,10 @@ async def development_console():
         elif command.startswith('server_list'):
             for server in bot.guilds:
                 print(server.name)
+        elif command.startswith('bot_info'):
+            print(bot.user.id)
+            print(bot.user)
+            print(bot.latency * 1000, 'ms')
 
 
 # ------------------ MAIN FUNCTION START
