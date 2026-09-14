@@ -486,7 +486,4 @@ async def main():
         development_console()
     )
 
-try:
-    asyncio.run(main())
-except Exception as e:
-    traceback.print_exc()
+asyncio.run(main())
