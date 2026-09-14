@@ -476,6 +476,9 @@ async def development_console():
             perms = bot.get_guild(int(guild_id)).me.guild_permissions
             perms = [perm_name for perm_name, enabled in perms if enabled]
             print(perms)
+        elif command.startswith('server_list'):
+            for server in bot.guilds:
+                print(server.name)
 
 
 # ------------------ MAIN FUNCTION START
