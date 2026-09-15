@@ -8,6 +8,7 @@ import json
 import datetime
 import asyncio
 import traceback
+import math
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -104,6 +105,7 @@ async def on_ready():
 
     global dev_channel
     global dev_server
+    global starttime
 
     print(f'skynet initialized: {bot.user}')
 
@@ -122,7 +124,7 @@ async def on_ready():
                 dev_channel = channel
 
     print(f'skynet dev server connection established: {dev_server} -> {dev_channel}')
-    starttime =time.time()
+    starttime = time.time()
     print(f'starttime : {starttime:0.2f}')
     accepting_commands = True
 
@@ -546,11 +548,12 @@ async def development_console():
             print('skynet: shutting down...')
 
             uptime = time.time() - starttime
+            print(uptime)
             days = int(uptime // 86400)
-            hours = int((uptime % 86400) // 3600)
+            hours  = int((uptime % 86400) // 3600)
             minutes = int((uptime % 3600) // 60)
-            seconds = int(uptime % 60)
-
+            seconds = int((uptime % 60))
+            
             print(f'uptime: {days}d {hours}h {minutes}m {seconds}s')
 
 
