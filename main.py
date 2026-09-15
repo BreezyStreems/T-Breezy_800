@@ -264,6 +264,7 @@ async def animeinv(ctx, args=None):
     strongest_character = [None, None, 0]
     if characters:
         character_list = ''
+        deleted_character_count = 0
         if args == None:
             for character in characters:
                 if character[2] > strongest_character[2]: strongest_character = character
@@ -279,14 +280,31 @@ async def animeinv(ctx, args=None):
                 for character in characters:
                     if character[2] > strongest_character[2]: strongest_character = character
                     character_list += str(character[1]) + ' -> ' + str(character[2]) + '\n'
+        elif args[2] == 'delete':
+            if args[3] == 'powerbased':
+                if not args[4].isdigit():
+                    return
+
+                for character in characters:
+                    if character[2] <= int(args[4]):
+                        ardb_cursor.execute("""
+                            DELETE FROM characters WHERE id = ? AND character = ?
+                        """, (ctx.author.id, character[1]))
+                        deleted_character_count += 1
+                    else: character_list += str(character[1]) + ' -> ' + str(character[2]) + '\n'
+
+                anime_roll_db_connection.commit()
+
         else:
             print('skynet: ERROR - invalid args - NEGLIGIBLE')
             await message.edit(content='skynet: ERROR - invalid args - NEGLIGIBLE')
             return
 
-        await message.edit(content=f'{character_list}\n'
+        if character_list: await message.edit(content=f'{character_list}\n'
                                    f'Strongest Character : {strongest_character[1]} -> {strongest_character[2]}\n'
-                                   f'Characters : {len(characters)}')
+                                   f'Characters : {len(characters) - deleted_character_count}')
+        else: await message.edit(content='EMPTY INVENTORY\n'
+                                         'ROLL A CHARACTER USING : "B| animeroll"')
     else:
         await message.edit(content='No characters in inventory')
 
