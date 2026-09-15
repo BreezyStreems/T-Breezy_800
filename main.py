@@ -91,6 +91,8 @@ waiting_for_input = {}
 dev_server = None # set in on ready
 dev_channel = None # set in on ready
 animeinv_max = 50
+starttime = 0
+accepting_commands = False
 
 # ------------------ GEMINI VARIABLES
 
@@ -120,10 +122,13 @@ async def on_ready():
                 dev_channel = channel
 
     print(f'skynet dev server connection established: {dev_server} -> {dev_channel}')
+    starttime =time.time()
+    print(f'starttime : {starttime:0.2f}')
+    accepting_commands = True
 
 @bot.event
 async def on_message(ctx):
-    if ctx.author.bot and ctx.author.id != bot.user.id: return
+    if ctx.author.bot and ctx.author.id != bot.user.id or not accepting_commands: return
 
     if ctx.author.id in user_command_timers:
         if time.time() - user_command_timers[ctx.author.id] < 5:
@@ -535,6 +540,19 @@ async def development_console():
             print(bot.user.id)
             print(bot.user)
             print(bot.latency * 1000, 'ms')
+
+        # CRITICAL COMMANDS
+        elif command.startswith('shutdown'):
+            print('skynet: shutting down...')
+
+            uptime = time.time() - starttime
+            days = int(uptime // 86400)
+            hours = int((uptime % 86400) // 3600)
+            minutes = int((uptime % 3600) // 60)
+            seconds = int(uptime % 60)
+
+            print(f'uptime: {days}d {hours}h {minutes}m {seconds}s')
+
 
 
 # ------------------ MAIN FUNCTION START
