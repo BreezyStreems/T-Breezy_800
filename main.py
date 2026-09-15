@@ -90,6 +90,7 @@ user_command_timers = {}
 waiting_for_input = {}
 dev_server = None # set in on ready
 dev_channel = None # set in on ready
+animeinv_max = 50
 
 # ------------------ GEMINI VARIABLES
 
@@ -125,7 +126,7 @@ async def on_message(ctx):
     if ctx.author.bot and ctx.author.id != bot.user.id: return
 
     if ctx.author.id in user_command_timers:
-        if time.time() - user_command_timers[ctx.author.id] < 1.5:
+        if time.time() - user_command_timers[ctx.author.id] < 5:
             return
         else:
             user_command_timers[ctx.author.id] = 0
@@ -143,10 +144,13 @@ async def on_message(ctx):
             await animeroll(ctx)
         elif ctx.content.endswith('status'):
             await status(ctx)
-        elif ctx.content.endswith('animeinv'):
-            await animeinv(ctx)
+        elif ctx.content.startswith('B| animeinv'):
+            command_args = ctx.content.split('|')
+            for i in range(len(command_args)): command_args[i] = command_args[i].strip()
+            print(command_args)
+            if len(command_args) > 2: await animeinv(ctx, args=command_args)
+            else: await animeinv(ctx)
         elif ctx.content.startswith('B| appraisechar '):
-            print(ctx.content[16:])
             await appraisechar(ctx, ctx.content[16:])
 
         # BREEZY COMMANDS
@@ -209,6 +213,15 @@ async def animeroll(ctx):
         await message.edit(content='ROLLED!', embed=embed)
         return True, character
 
+    ardb_cursor.execute("""
+        SELECT * FROM characters WHERE id = ?
+    """, (ctx.author.id,))
+    animeinv_status = ardb_cursor.fetchall()
+
+    if animeinv_status == 50:
+        await ctx.channel.send('skynet: WARNING - inventory full!! - NEGLIGIBLE')
+        return
+
     message = await ctx.channel.send('ROLLING...')
     status, character = await roll_anime(message)
     if not status:
@@ -241,18 +254,39 @@ async def animeroll(ctx):
         """, (ctx.author.id, character["attributes"]["name"]))
         anime_roll_db_connection.commit()
 
-async def animeinv(ctx):
+async def animeinv(ctx, args=None):
     message = await ctx.channel.send('FETCHING...')
     ardb_cursor.execute("""
         SELECT * FROM characters WHERE id = ?
     """, (ctx.author.id,))
     characters = ardb_cursor.fetchall()
 
+    strongest_character = [None, None, 0]
     if characters:
         character_list = ''
-        for character in characters:
-            character_list += str(character[1]) + ' -> ' + str(character[2]) + '\n'
-        await message.edit(content=character_list)
+        if args == None:
+            for character in characters:
+                if character[2] > strongest_character[2]: strongest_character = character
+                character_list += str(character[1]) + ' -> ' + str(character[2]) + '\n'
+        elif args[2] == 'sort':
+            if args[3] == 'strongestasc':
+                characters.sort(key=lambda x: x[2], reverse=True)
+                for character in characters:
+                    if character[2] > strongest_character[2]: strongest_character = character
+                    character_list += str(character[1]) + ' -> ' + str(character[2]) + '\n'
+            elif args[3] == 'strongestdesc':
+                characters.sort(key=lambda x: x[2])
+                for character in characters:
+                    if character[2] > strongest_character[2]: strongest_character = character
+                    character_list += str(character[1]) + ' -> ' + str(character[2]) + '\n'
+        else:
+            print('skynet: ERROR - invalid args - NEGLIGIBLE')
+            await message.edit(content='skynet: ERROR - invalid args - NEGLIGIBLE')
+            return
+
+        await message.edit(content=f'{character_list}\n'
+                                   f'Strongest Character : {strongest_character[1]} -> {strongest_character[2]}\n'
+                                   f'Characters : {len(characters)}')
     else:
         await message.edit(content='No characters in inventory')
 
