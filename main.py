@@ -14,6 +14,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from google import genai
 from curl_cffi import requests
+from functools import partial
 
 # ------------------ ENV VARIABLES
 
@@ -94,6 +95,7 @@ dev_channel = None # set in on ready
 animeinv_max = 50
 starttime = 0
 accepting_commands = False
+task_queue = asyncio.Queue()
 
 # ------------------ GEMINI VARIABLES
 
@@ -106,6 +108,7 @@ async def on_ready():
     global dev_channel
     global dev_server
     global starttime
+    global accepting_commands
 
     print(f'skynet initialized: {bot.user}')
 
@@ -148,17 +151,16 @@ async def on_message(ctx):
 
     if ctx.content.startswith('B| '):
         if ctx.content.endswith('animeroll'):
-            await animeroll(ctx)
+            await task_queue.put(partial(animeroll, ctx))
         elif ctx.content.endswith('status'):
-            await status(ctx)
+            await task_queue.put(partial(status, ctx))
         elif ctx.content.startswith('B| animeinv'):
             command_args = ctx.content.split('|')
             for i in range(len(command_args)): command_args[i] = command_args[i].strip()
-            print(command_args)
-            if len(command_args) > 2: await animeinv(ctx, args=command_args)
-            else: await animeinv(ctx)
+            if len(command_args) > 2: await task_queue.put(partial(animeinv, ctx, args=command_args))
+            else: await task_queue.put(partial(animeinv, ctx))
         elif ctx.content.startswith('B| appraisechar '):
-            await appraisechar(ctx, ctx.content[16:])
+            await task_queue.put(partial(appraisechar, ctx, ctx.content[16:]))
 
         # BREEZY COMMANDS
         if ctx.author.id in trusted_users:
@@ -500,9 +502,24 @@ async def check_rarity(power):
 
     return tier
 
+async def task_worker():
+    while accepting_commands:
+        task = await task_queue.get()
+
+        try:
+            await task()
+        except Exception as e:
+            print('skynet: ERROR - task failed - CRITICAL')
+            traceback.print_exc()
+        finally:
+            task_queue.task_done()
+
 # ------------------ DEVELOPMENT CONSOLE
 
 async def development_console():
+
+    global accepting_commands
+
     while not bot.is_closed():
         command = await asyncio.to_thread(input, 'skynet>\n')
 
@@ -547,6 +564,11 @@ async def development_console():
         elif command.startswith('shutdown'):
             print('skynet: shutting down...')
 
+            accepting_commands = False
+
+            print('skynet: finishing tasks...')
+            await task_queue.join()
+
             uptime = time.time() - starttime
             print(uptime)
             days = int(uptime // 86400)
@@ -555,6 +577,7 @@ async def development_console():
             seconds = int((uptime % 60))
             
             print(f'uptime: {days}d {hours}h {minutes}m {seconds}s')
+            await bot.close()
 
 
 
@@ -563,7 +586,8 @@ async def development_console():
 async def main():
     await asyncio.gather(
         bot.start(TOKEN),
-        development_console()
+        development_console(),
+        task_worker()
     )
 
 asyncio.run(main())
