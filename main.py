@@ -559,6 +559,11 @@ async def development_console():
             print(bot.user.id)
             print(bot.user)
             print(bot.latency * 1000, 'ms')
+        elif command.startswith('queue'):
+            print('QUEUE \n' \
+            '-----------------------')
+            for task in task_queue:
+                print(task)
 
         # CRITICAL COMMANDS
         elif command.startswith('shutdown'):
