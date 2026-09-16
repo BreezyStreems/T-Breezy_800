@@ -593,6 +593,7 @@ async def development_console():
 async def create_image(wh, type, args=None):
     if type == 'animeroll character':
         img = Image.new('RGB', (wh[0], wh[1]), 'black')
+        border = Image.open(os.path.join(home_dir, 'assets', 'character_card_background'))
         draw = ImageDraw.Draw(img)
     elif type == 'appraisechar character':
         pass
