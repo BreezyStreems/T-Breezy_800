@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from google import genai
 from curl_cffi import requests
 from functools import partial
+from PIL import Image, ImageDraw, ImageFont
 
 # ------------------ ENV VARIABLES
 
@@ -96,6 +97,7 @@ animeinv_max = 50
 starttime = 0
 accepting_commands = False
 task_queue = asyncio.Queue()
+home_dir = os.path.dirname('__file__')
 
 # ------------------ GEMINI VARIABLES
 
@@ -586,7 +588,14 @@ async def development_console():
             print(f'uptime: {days}d {hours}h {minutes}m {seconds}s')
             await bot.close()
 
+# ------------------ HELPER FUNCTIONS
 
+async def create_image(wh, type, args=None):
+    if type == 'animeroll character':
+        img = Image.new('RGB', (wh[0], wh[1]), 'black')
+        draw = ImageDraw.Draw(img)
+    elif type == 'appraisechar character':
+        pass
 
 # ------------------ MAIN FUNCTION START
 
