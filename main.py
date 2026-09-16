@@ -562,6 +562,9 @@ async def development_console():
         elif command.startswith('queue'):
             print('QUEUE \n' \
             '-----------------------')
+            if task_queue.empty():
+                print('No Tasks')
+                return
             for task in task_queue:
                 print(task)
 
