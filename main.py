@@ -575,7 +575,6 @@ async def development_console():
             await task_queue.join()
 
             uptime = time.time() - starttime
-            print(uptime)
             days = int(uptime // 86400)
             hours  = int((uptime % 86400) // 3600)
             minutes = int((uptime % 3600) // 60)
