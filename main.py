@@ -9,6 +9,7 @@ import datetime
 import asyncio
 import traceback
 import math
+import re
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -98,6 +99,7 @@ starttime = 0
 accepting_commands = False
 task_queue = asyncio.Queue()
 home_dir = os.path.dirname('__file__')
+muted_users = {}
 
 # ------------------ GEMINI VARIABLES
 
@@ -133,6 +135,8 @@ async def on_ready():
     print(f'starttime : {starttime:0.2f}')
     accepting_commands = True
 
+    await task_worker()
+
 @bot.event
 async def on_message(ctx):
     if ctx.author.bot and ctx.author.id != bot.user.id or not accepting_commands: return
@@ -152,6 +156,7 @@ async def on_message(ctx):
             await ctx.channel.send('terminate last process before starting a new command')
 
     if ctx.content.startswith('B| '):
+        # General Commands
         if ctx.content.endswith('animeroll'):
             await task_queue.put(partial(animeroll, ctx))
         elif ctx.content.endswith('status'):
@@ -170,6 +175,21 @@ async def on_message(ctx):
                 if len(ctx.mentions) == 1:
                     user = ctx.mentions[0]
                     await info(ctx, user)
+    elif ctx.content.startswith('bb '):
+        # Moderation Commands
+
+        if ctx.content.startswith('bb mute'):
+            command_args = ctx.content.split(' ')
+            for i in range(len(command_args)): command_args[i] = command_args[i].strip()
+            if ctx.mentions and len(command_args) == 4:
+                command_args[2] = command_args[2]
+                await mute(command_args, ctx)
+            else:
+                print('skynet: ERROR - invalid argument amount - CRITICAL')
+                await ctx.channel.send('skynet: ERROR - invalid argument amount - CRITICAL')
+        if ctx.content.startswith('bb unmute'):
+            try: await unmute(ctx)
+            except Exception as e: print(e)
 
 # ------------------ FUNCTIONS
 
@@ -428,7 +448,7 @@ async def appraisechar(ctx, character):
 
     else:
         print('skynet: ERROR character not found or already appraised - NEGLIGIBLE')
-        await message.edit(content='skynet: ERROR character not found or already appraised - NEGLIBLE')
+        await message.edit(content='skynet: ERROR character not found or already appraised - NEGLIGIBLE')
 
 async def accept_user_input(ctx, user_input):
     if user_input == 'y':
@@ -515,6 +535,97 @@ async def task_worker():
             traceback.print_exc()
         finally:
             task_queue.task_done()
+
+async def mute(args, ctx):
+    print(args, ctx)
+
+    if not ctx.author.guild_permissions.mute_members:
+        print('skynet: ERROR - missing perms - NEGLIGIBLE')
+        await ctx.channel.send('https://klipy.com/gifs/ishowspeed-are-you-serious-right-now-bro')
+        return
+
+    match = re.fullmatch(r'(\d+)(s|m|h|d)', args[3])
+    if not match:
+        print('skynet: ERROR - invalid arguments | duration keyletter - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - invalid arguments | duration keyletter - CRITICAL')
+        return
+
+    amount = int(match.group(1))
+    unit = match.group(2)
+
+    units = {
+        's': 1,
+        'm': 60,
+        'h': 60 * 60,
+        'd': 60 * 60 * 24,
+    }
+
+    match = re.fullmatch(r'<@!?(\d+)>', args[2])
+    if not match:
+        print('skynet: ERROR - invalid arguments | user mention - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - invalid arguments | user mention - CRITICAL')
+        return
+
+    member = await ctx.guild.fetch_member(int(match.group(1)))
+    if not member:
+        print('skynet: ERROR - invalid arguments | user not found - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - invalid arguments | user not found - CRITICAL')
+        return
+
+    duration = datetime.timedelta(seconds=amount * units[unit])
+
+    if (amount * units[unit]) <= 0:
+        print('skynet: ERROR - invalid time | duration less than 1 - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - invalid time | duration less than 1 - CRITICAL')
+        return
+
+    try:
+        await member.timeout(duration)
+        muted_users[member.id] = True
+        print(f'skynet: terminated {member.name} for {duration} seconds')
+        await ctx.channel.send('Terminated...')
+    except discord.Forbidden:
+        print('skynet: ERROR - no perms - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - no perms - CRITICAL')
+    except discord.HTTPException as e:
+        print('skynet: ERROR - timeout failed - CRITICAL')
+        print(e)
+        await ctx.channel.send('skynet: ERROR - timeout failed - CRITICAL')
+    except Exception as e:
+        print('skynet: ERROR - timeout failed - CRITICAL')
+        print(e)
+        await ctx.channel.send('skynet: ERROR - timeout failed - CRITICAL')
+
+async def unmute(ctx):
+    if not ctx.author.guild_permissions.mute_members:
+        print('skynet: ERROR - missing perms - NEGLIGIBLE')
+        await ctx.channel.send('https://klipy.com/gifs/ishowspeed-are-you-serious-right-now-bro')
+        return
+
+    command_args = ctx.content.split(' ')
+    match = re.fullmatch(r'<@!?(\d+)>', command_args[2])
+    if not match:
+        print('skynet: ERROR - invalid arguments | user mention - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - invalid arguments | user mention - CRITICAL')
+        return
+
+    member = await ctx.guild.fetch_member(int(match.group(1)))
+    if not member:
+        print('skynet: ERROR - invalid arguments | user not found - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - invalid arguments | user not found - CRITICAL')
+        return
+
+    try:
+        await member.timeout(None)
+        print(f'skynet: unmuted {member.name}')
+        await ctx.channel.send(f'{member.mention} Your vocal privileges have been terminated... wait, no. Mute lifted. Talk')
+        del muted_users[member.id]
+    except discord.Forbidden:
+        print('skynet: ERROR - unmute failed - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - unmute failed - CRITICAL')
+    except discord.HTTPException:
+        print('skynet: ERROR - unmute failed - CRITICAL')
+        await ctx.channel.send('skynet: ERROR - unmute failed - CRITICAL')
 
 # ------------------ DEVELOPMENT CONSOLE
 
@@ -604,7 +715,6 @@ async def main():
     await asyncio.gather(
         bot.start(TOKEN),
         development_console(),
-        task_worker()
     )
 
 asyncio.run(main())
