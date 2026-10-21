@@ -94,6 +94,7 @@ user_command_timers = {}
 waiting_for_input = {}
 dev_server = None # set in on ready
 dev_channel = None # set in on ready
+welc_channel = None # set in on ready
 animeinv_max = 50
 starttime = 0
 accepting_commands = False
@@ -106,13 +107,29 @@ muted_users = {}
 if GEMINI_API_KEY: client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ------------------ DISCORD EVENTS
+
 @bot.event
 async def on_ready():
+    await B_on_ready(None)
+
+@bot.event
+async def on_message(ctx):
+    await B_on_message(ctx)
+
+@bot.event
+async def on_member_join(ctx):
+    await B_on_member_join(ctx)
+
+# ------------------ EVENT FUNCTIONS
+
+async def B_on_ready(ctx):
 
     global dev_channel
     global dev_server
     global starttime
     global accepting_commands
+    global welc_channel
+    global fennec
 
     print(f'skynet initialized: {bot.user}')
 
@@ -131,14 +148,33 @@ async def on_ready():
                 dev_channel = channel
 
     print(f'skynet dev server connection established: {dev_server} -> {dev_channel}')
+
+    fennec = bot.get_guild(1559718691090731048)
+
+    if fennec is None:
+        for guild in bot.guilds:
+            if guild.id == 1559718691090731048:
+                fennec = guild
+
+    welc_channel = fennec.get_channel(1560093667794878566)
+
+    if welc_channel is None:
+        for channel in fennec.channels:
+            if channel.name == '𝒲﹐welc﹗':
+                welc_channel = channel
+
+    print(f'skynet welc channel established: {welc_channel}')
+
     starttime = time.time()
     print(f'starttime : {starttime:0.2f}')
     accepting_commands = True
 
     await task_worker()
 
-@bot.event
-async def on_message(ctx):
+async def B_on_message(ctx, trigger=None):
+    if trigger:
+        return
+
     if ctx.author.bot and ctx.author.id != bot.user.id or not accepting_commands: return
 
     if ctx.author.id in user_command_timers:
@@ -190,6 +226,18 @@ async def on_message(ctx):
         if ctx.content.startswith('bb unmute'):
             try: await unmute(ctx)
             except Exception as e: print(e)
+
+async def B_on_member_join(ctx, trigger=None, name=None):
+
+    global welc_channel
+
+    if not trigger is None:
+        await welc_channel.send(f'haiiii ≽^-⩊-^≼ - welcome to the server {name}\n'
+                                f'grab some roles, read the rules, and get settled into our den!!')
+        return
+
+    await welc_channel.send(f'haiiii ≽^-⩊-^≼ - welcome to the server {ctx.name}\n'
+                            f'grab some roles, read the rules, and get settled into our den!!')
 
 # ------------------ FUNCTIONS
 
@@ -680,6 +728,12 @@ async def development_console():
                 return
             for task in task_queue:
                 print(task)
+        elif command.startswith('trigger '):
+            command_args = command.split(' ')
+            trigger = command_args[1]
+            if trigger == 'join':
+                name = command_args[2]
+                await B_on_member_join(None, trigger=True, name=name)
 
         # CRITICAL COMMANDS
         elif command.startswith('shutdown'):
