@@ -55,8 +55,6 @@ welc_channel = None # set in on ready
 
 onmessage = onmessage(bot, GEMINI_API_KEY)
 
-home_dir = os.path.dirname(os.path.dirname(__file__))
-
 # ------------------ GEMINI VARIABLES
 # ------------------ DISCORD EVENTS
 

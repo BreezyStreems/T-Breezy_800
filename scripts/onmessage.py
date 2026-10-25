@@ -5,6 +5,7 @@ import random
 import discord
 import datetime
 import re
+import os
 
 from functools import partial
 from google import genai
@@ -16,6 +17,7 @@ class onmessage:
         muted_users = {}
         self.accepting_commands = False
         self.gemini_api_key = gemini_api_key
+        home_dir = os.path.dirname(os.path.dirname(__file__))
 
         if gemini_api_key: client = genai.Client(api_key=gemini_api_key)
 
@@ -40,7 +42,7 @@ class onmessage:
             'Accept': 'application/json'
         }
 
-        anime_roll_db_connection = sqlite3.connect('anime_roll.db')
+        anime_roll_db_connection = sqlite3.connect(home_dir + '/anime_roll.db')
         ardb_cursor = anime_roll_db_connection.cursor()
         ardb_cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users(
