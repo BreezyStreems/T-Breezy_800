@@ -216,7 +216,6 @@ class onmessage:
                 anime_roll_db_connection.commit()
 
         async def animeinv(ctx, args=None):
-            print(args)
             message = await ctx.channel.send('FETCHING...')
             ardb_cursor.execute("""
                 SELECT * FROM characters WHERE id = ?
@@ -248,7 +247,6 @@ class onmessage:
                             print('skynet: ERROR - delete inventory failed - NEGLIGIBLE')
                             await message.edit(content='skynet: ERROR - delete inventory failed - NEGLIGIBLE')
                             return
-                        print(characters)
                         for character in characters:
                             if character[2] <= int(args[4].strip()):
                                 ardb_cursor.execute("""
